@@ -14,43 +14,18 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
-parser.add_argument(
-    "--video", action="store_true", default=False, help="Record videos during training."
-)
-parser.add_argument(
-    "--video_length",
-    type=int,
-    default=200,
-    help="Length of the recorded video (in steps).",
-)
-parser.add_argument(
-    "--video_interval",
-    type=int,
-    default=2000,
-    help="Interval between video recordings (in steps).",
-)
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
-    "--seed", type=int, default=None, help="Seed used for the environment"
+    "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
-parser.add_argument(
-    "--distributed",
-    action="store_true",
-    default=False,
-    help="Run training with multiple GPUs or nodes.",
-)
-parser.add_argument(
-    "--checkpoint", type=str, default=None, help="Path to model checkpoint."
-)
-parser.add_argument(
-    "--sigma", type=str, default=None, help="The policy's initial standard deviation."
-)
-parser.add_argument(
-    "--max_iterations", type=int, default=None, help="RL Policy training iterations."
-)
+parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
+parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -91,46 +66,30 @@ from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
-import hangkir.envs
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
-from omni.isaac.lab_tasks.utils.wrappers.rl_games import (
-    RlGamesGpuEnv,
-    RlGamesVecEnvWrapper,
-)
+from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 
 @hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
-def main(
-    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict
-):
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with RL-Games agent."""
     # override configurations with non-hydra CLI arguments
-    env_cfg.scene.num_envs = (
-        args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    )
-    env_cfg.sim.device = (
-        args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    )
+    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
 
-    agent_cfg["params"]["seed"] = (
-        args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
-    )
+    agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
     agent_cfg["params"]["config"]["max_epochs"] = (
-        args_cli.max_iterations
-        if args_cli.max_iterations is not None
-        else agent_cfg["params"]["config"]["max_epochs"]
+        args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg["params"]["config"]["max_epochs"]
     )
     if args_cli.checkpoint is not None:
         resume_path = retrieve_file_path(args_cli.checkpoint)
         agent_cfg["params"]["load_checkpoint"] = True
         agent_cfg["params"]["load_path"] = resume_path
-        print(
-            f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}"
-        )
+        print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
     train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
 
     # multi-gpu training config
@@ -147,15 +106,11 @@ def main(
     env_cfg.seed = agent_cfg["params"]["seed"]
 
     # specify directory for logging experiments
-    log_root_path = os.path.join(
-        "logs", "rl_games", agent_cfg["params"]["config"]["name"]
-    )
+    log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
-    log_dir = agent_cfg["params"]["config"].get(
-        "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    )
+    log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     # set directory into agent config
     # logging directory path: <train_dir>/<full_experiment_name>
     agent_cfg["params"]["config"]["train_dir"] = log_root_path
@@ -173,9 +128,7 @@ def main(
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
 
     # create isaac environment
-    env = gym.make(
-        args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None
-    )
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -198,14 +151,9 @@ def main(
     # register the environment to rl-games registry
     # note: in agents configuration: environment name must be "rlgpu"
     vecenv.register(
-        "IsaacRlgWrapper",
-        lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(
-            config_name, num_actors, **kwargs
-        ),
+        "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
     )
-    env_configurations.register(
-        "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
-    )
+    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
@@ -217,14 +165,7 @@ def main(
     runner.reset()
     # train the agent
     if args_cli.checkpoint is not None:
-        runner.run(
-            {
-                "train": True,
-                "play": False,
-                "sigma": train_sigma,
-                "checkpoint": resume_path,
-            }
-        )
+        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
     else:
         runner.run({"train": True, "play": False, "sigma": train_sigma})
 

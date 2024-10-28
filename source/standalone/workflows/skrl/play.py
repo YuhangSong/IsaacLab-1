@@ -17,31 +17,15 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(
-    description="Play a checkpoint of an RL agent from skrl."
-)
+parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
-    "--video", action="store_true", default=False, help="Record videos during training."
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
-parser.add_argument(
-    "--video_length",
-    type=int,
-    default=200,
-    help="Length of the recorded video (in steps).",
-)
-parser.add_argument(
-    "--disable_fabric",
-    action="store_true",
-    default=False,
-    help="Disable fabric and use USD I/O operations.",
-)
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument(
-    "--checkpoint", type=str, default=None, help="Path to model checkpoint."
-)
+parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
     "--ml_framework",
     type=str,
@@ -95,12 +79,7 @@ from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from omni.isaac.lab.utils.dict import print_dict
 
 import omni.isaac.lab_tasks  # noqa: F401
-import hangkir.envs
-from omni.isaac.lab_tasks.utils import (
-    get_checkpoint_path,
-    load_cfg_from_registry,
-    parse_env_cfg,
-)
+from omni.isaac.lab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
 # config shortcuts
@@ -115,22 +94,15 @@ def main():
 
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=args_cli.num_envs,
-        use_fabric=not args_cli.disable_fabric,
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     try:
-        experiment_cfg = load_cfg_from_registry(
-            args_cli.task, f"skrl_{algorithm}_cfg_entry_point"
-        )
+        experiment_cfg = load_cfg_from_registry(args_cli.task, f"skrl_{algorithm}_cfg_entry_point")
     except ValueError:
         experiment_cfg = load_cfg_from_registry(args_cli.task, "skrl_cfg_entry_point")
 
     # specify directory for logging experiments (load checkpoint)
-    log_root_path = os.path.join(
-        "logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"]
-    )
+    log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     # get checkpoint path
@@ -138,16 +110,12 @@ def main():
         resume_path = os.path.abspath(args_cli.checkpoint)
     else:
         resume_path = get_checkpoint_path(
-            log_root_path,
-            run_dir=f".*_{algorithm}_{args_cli.ml_framework}",
-            other_dirs=["checkpoints"],
+            log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
         )
     log_dir = os.path.dirname(os.path.dirname(resume_path))
 
     # create isaac environment
-    env = gym.make(
-        args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None
-    )
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -165,19 +133,13 @@ def main():
         env = multi_agent_to_single_agent(env)
 
     # wrap around environment for skrl
-    env = SkrlVecEnvWrapper(
-        env, ml_framework=args_cli.ml_framework
-    )  # same as: `wrap_env(env, wrapper="auto")`
+    env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="auto")`
 
     # configure and instantiate the skrl runner
     # https://skrl.readthedocs.io/en/latest/api/utils/runner.html
     experiment_cfg["trainer"]["close_environment_at_exit"] = False
-    experiment_cfg["agent"]["experiment"][
-        "write_interval"
-    ] = 0  # don't log to TensorBoard
-    experiment_cfg["agent"]["experiment"][
-        "checkpoint_interval"
-    ] = 0  # don't generate checkpoints
+    experiment_cfg["agent"]["experiment"]["write_interval"] = 0  # don't log to TensorBoard
+    experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0  # don't generate checkpoints
     runner = Runner(env, experiment_cfg)
 
     print(f"[INFO] Loading model checkpoint from: {resume_path}")

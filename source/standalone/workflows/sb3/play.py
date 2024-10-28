@@ -12,31 +12,15 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(
-    description="Play a checkpoint of an RL agent from Stable-Baselines3."
-)
+parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from Stable-Baselines3.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
-    "--video", action="store_true", default=False, help="Record videos during training."
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
-parser.add_argument(
-    "--video_length",
-    type=int,
-    default=200,
-    help="Length of the recorded video (in steps).",
-)
-parser.add_argument(
-    "--disable_fabric",
-    action="store_true",
-    default=False,
-    help="Disable fabric and use USD I/O operations.",
-)
-parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
-)
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument(
-    "--checkpoint", type=str, default=None, help="Path to model checkpoint."
-)
+parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument(
     "--use_last_checkpoint",
     action="store_true",
@@ -67,12 +51,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 from omni.isaac.lab.utils.dict import print_dict
 
 import omni.isaac.lab_tasks  # noqa: F401
-import hangkir.envs
-from omni.isaac.lab_tasks.utils.parse_cfg import (
-    get_checkpoint_path,
-    load_cfg_from_registry,
-    parse_env_cfg,
-)
+from omni.isaac.lab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 
@@ -80,10 +59,7 @@ def main():
     """Play with stable-baselines agent."""
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=args_cli.num_envs,
-        use_fabric=not args_cli.disable_fabric,
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
 
@@ -105,9 +81,7 @@ def main():
     agent_cfg = process_sb3_cfg(agent_cfg)
 
     # create isaac environment
-    env = gym.make(
-        args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None
-    )
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -127,10 +101,8 @@ def main():
         env = VecNormalize(
             env,
             training=True,
-            norm_obs="normalize_input" in agent_cfg
-            and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg
-            and agent_cfg.pop("normalize_value"),
+            norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
+            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
             clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
             gamma=agent_cfg["gamma"],
             clip_reward=np.inf,
